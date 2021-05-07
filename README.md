@@ -34,3 +34,8 @@ f - carrier frequency, s - sample rate, c - number of pulsations at the carrier 
 ./interval_coding.py double.bin -f 501 -s 80000 -c 32 -t 1 -r double
 ./interval_coding.py byte.bin -f 501 -s 80000 -c 4 -t 1 -r byte
 ```
+
+Using frequencies from keyboard input
+```sh
+./interval_coding.py "7.83 10 7.83 10" -f 501 -s 80000 -c 23 -t 1
+```
