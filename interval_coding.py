@@ -330,8 +330,6 @@ interval_coding
     parser.add_argument("-m",'--mode', dest='mode', type=str, default='int16', help="Mode [int16]")
 
     parser.add_argument("-g",'--gaussian', dest='gaussian', type=int, default=-1, help="$\sigma$=100")
-
-    parser.add_argument('--full', dest='full', action='store_true', help="Full waveform")
     
     args = parser.parse_args()
 
@@ -379,6 +377,10 @@ interval_coding
     print("[*] generating...")
     interval_coding(args.carrier_freq, interval_freqs, args.samp_rate, count=args.count, times=args.times, gaussian=args.gaussian, mode=args.mode, wav=1, show=1)
     print("[*] done!")
+
+
+
+
 
 
 
