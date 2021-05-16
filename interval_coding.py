@@ -197,7 +197,7 @@ def plot_spectrum(lst_y, samp_rate, title="", xlabel="x", ylabel="y", savepath="
     p.clf()
     p.close()
 
-def interval_create(carrier_freq, pulse_freqs, samp_rate, count, times, gaussian=0, flag=1, mode="float"):
+def interval_create(carrier_freq, pulse_freqs, samp_rate, count, times, gaussian=0, noise=0, flag=1, mode="float"):
     #print(samp_rate)
     #pulse_freq = round(np.average(pulse_freqs))
 
@@ -227,29 +227,32 @@ def interval_create(carrier_freq, pulse_freqs, samp_rate, count, times, gaussian
             #array[acc:acc+duration] = (np.sin(2*np.pi*carrier_freq * time - np.pi/2) + 1) / 2
             for j in range(count):
                 sample = duration // count
-                print(sample)
                 array[acc+j*sample:acc+(j+1)*sample] = signal.gaussian(sample, std=gaussian)
         #print(pulse.shape[0])
 
         #array[acc:acc+duration] = pulse
         acc += duration + space
 
+    total = np.array([])
+    for i in range(times):
+        total = np.hstack((total, array))
+
+    if noise:
+        total += np.random.normal(0, noise/100, total.shape[0])
+        total = total / np.max(total)
+
     if mode == "int16":
-        array = np.int16(32767 * array)
+        total = np.int16(32767 * total)
 
-    total = array
-    for i in range(times - 1):
-        array = np.hstack((total, array))
-
-    time = np.arange(0, array.shape[0], 1) / samp_rate
-    return array, time
+    time = np.arange(0, total.shape[0], 1) / samp_rate
+    return total, time
 
 
-def interval_coding(carrier_freq, interval_freqs, samp_rate, count=1, times=1, gaussian=0, mode="int16", wav=0, show=0):
+def interval_coding(carrier_freq, interval_freqs, samp_rate, count=1, times=1, gaussian=0, noise=0, mode="int16", wav=0, show=0):
     interval_freqs = np.array(interval_freqs)
     pulse_freq = round(np.average(interval_freqs))
 
-    array, time = interval_create(carrier_freq, interval_freqs, samp_rate, count, times, gaussian=gaussian, mode=mode)
+    array, time = interval_create(carrier_freq, interval_freqs, samp_rate, count, times, gaussian=gaussian, noise=noise, mode=mode)
 
     directory = "output"
 
@@ -286,7 +289,7 @@ def interval_coding(carrier_freq, interval_freqs, samp_rate, count=1, times=1, g
 
 
 
-version = "0.0.4"
+version = "0.0.5"
 
 
 if __name__ == "__main__":
@@ -307,9 +310,17 @@ interval_coding
     """
 
     """
+./interval_coding.py "9" -f 45 -s 80000 -c 1 -t 80 -g 20
+    """
+
+    """
 ./interval_coding.py "7.83" -f 63 -s 44100 -c 4 -t 512
 ./interval_coding.py "7.83" -f 940 -s 44100 -c 8 -t 512
 ./interval_coding.py "7.83" -f 4009 -s 44100 -c 63 -t 512
+    """
+
+    """
+./interval_coding.py "7.83" -f 501 -s 44100 -c 3 -t 300 -n 5
     """
 
     usage = './interval_coding.py "7.83" -f 60 -s 44100 -c 4 -t 512'
@@ -330,6 +341,7 @@ interval_coding
     parser.add_argument("-m",'--mode', dest='mode', type=str, default='int16', help="Mode [int16]")
 
     parser.add_argument("-g",'--gaussian', dest='gaussian', type=int, default=-1, help="$\sigma$=100")
+    parser.add_argument("-n",'--noise', dest='noise', type=int, default=0, help="Noise level [0 to 100]")
     
     args = parser.parse_args()
 
@@ -375,8 +387,9 @@ interval_coding
         print("[*] done!")
 
     print("[*] generating...")
-    interval_coding(args.carrier_freq, interval_freqs, args.samp_rate, count=args.count, times=args.times, gaussian=args.gaussian, mode=args.mode, wav=1, show=1)
+    interval_coding(args.carrier_freq, interval_freqs, args.samp_rate, count=args.count, times=args.times, gaussian=args.gaussian, noise=args.noise, mode=args.mode, wav=1, show=1)
     print("[*] done!")
+
 
 
 
