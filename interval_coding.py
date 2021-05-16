@@ -292,7 +292,7 @@ def interval_coding(carrier_freq, interval_freqs, samp_rate, count=1, times=1, g
 
 
 
-version = "0.0.5"
+version = "0.0.6"
 
 
 if __name__ == "__main__":
