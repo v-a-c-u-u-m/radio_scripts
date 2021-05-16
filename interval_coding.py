@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib.pyplot as p
 from argparse import ArgumentParser, RawTextHelpFormatter
 from os import makedirs
-from os.path import join, basename
+from os.path import join, basename, exists
 from numba import njit
 from struct import pack, unpack
 from sys import argv, stdout, exit
@@ -88,7 +88,7 @@ def plot_xlist(lst_y, lst_x=[], labels=[], colors=[], scatters=[], linestyles=[]
 
 def interval_create(carrier_freq, pulse_freqs, samp_rate, count, times, flag=1, mode="float"):
     #print(samp_rate)
-    pulse_freq = round(np.average(interval_freqs))
+    #pulse_freq = round(np.average(pulse_freqs))
 
     #array = np.array([], dtype="float")
 
@@ -122,7 +122,7 @@ def interval_create(carrier_freq, pulse_freqs, samp_rate, count, times, flag=1, 
     for i in range(times - 1):
         array = np.hstack((total, array))
 
-    time = np.arange(0, array.shape[0]/samp_rate, 1/samp_rate)
+    time = np.arange(0, array.shape[0], 1) / samp_rate
     return array, time
 
 
@@ -136,13 +136,13 @@ def interval_coding(carrier_freq, interval_freqs, samp_rate, count=1, times=1, m
 
     if wav:
         makedirs(directory, exist_ok=True)
-        name = "pulse{:d}_count{:d}_carrier{:d}".format(pulse_freq, count, carrier_freq)
+        name = "pulse{:d}_carrier{:d}_count{:d}_times{:d}".format(pulse_freq, carrier_freq, count, times)
         wav_path = join(directory, name+".wav")
         write(wav_path, samp_rate, array)
 
     if show:
         makedirs(directory, exist_ok=True)
-        title = "samp_rate={:d}\npulse_freq={:.2f}, carrier_freq={:.2f}".format(samp_rate, pulse_freq, carrier_freq)
+        title = "samp_rate={:d}\npulse_freq={:.2f}, carrier_freq={:.2f}, count={:d}, times={:d}".format(samp_rate, pulse_freq, carrier_freq, count, times)
 
         lst_y = [array]
         lst_x = [time]
@@ -162,7 +162,7 @@ def interval_coding(carrier_freq, interval_freqs, samp_rate, count=1, times=1, m
 
 
 
-version = "0.0.1"
+version = "0.0.3"
 
 
 if __name__ == "__main__":
@@ -182,7 +182,13 @@ interval_coding
 ./interval_coding.py byte.bin -f 501 -s 80000 -c 4 -t 1 -r byte
     """
 
-    usage = './interval_coding.py double.bin -f 501 -s 80000 -c 32 -t 1'
+    """
+./interval_coding.py "7.83" -f 63 -s 44100 -c 4 -t 512
+./interval_coding.py "7.83" -f 940 -s 44100 -c 8 -t 512
+./interval_coding.py "7.83" -f 4009 -s 44100 -c 63 -t 512
+    """
+
+    usage = './interval_coding.py "7.83" -f 60 -s 44100 -c 4 -t 512'
 
     parser = ArgumentParser(description=banner,
                             formatter_class=RawTextHelpFormatter,
@@ -206,30 +212,39 @@ interval_coding
         parser.print_help()
         exit(1)
 
-    with open(args.filepath, "rb") as f:
+    if exists(args.filepath):
+        with open(args.filepath, "rb") as f:
+            print("[*] data reading...")
+            if args.read in ["double", "float"]:
+                if args.read == "double":
+                    k = 8
+                    s = "d"
+                elif args.read == "float":
+                    k = 4
+                    s = "f"
+                data = f.read()
+                interval_freqs = []
+                for i in range(len(data) // k):
+                    chunk = data[i*k:(i+1)*k]
+                    interval_freqs.append(unpack(s, chunk)[0])
+                print(interval_freqs)
+            else:
+                interval_freqs = list(bytearray(f.read()))
+            print("[*] intervals = {:d}".format(len(interval_freqs)))
+            print("[*] done!")
+    else:
         print("[*] data reading...")
-        if args.read in ["double", "float"]:
-            if args.read == "double":
-                k = 8
-                s = "d"
-            elif args.read == "float":
-                k = 4
-                s = "f"
-            data = f.read()
-            interval_freqs = []
-            for i in range(len(data) // k):
-                chunk = data[i*k:(i+1)*k]
-                interval_freqs.append(unpack(s, chunk)[0])
-            print(interval_freqs)
-        else:
-            interval_freqs = list(bytearray(f.read()))
+        lst = args.filepath.split()
+        interval_freqs = []
+        for f in lst:
+            interval_freqs.append(float(f))
+        print(interval_freqs)
         print("[*] intervals = {:d}".format(len(interval_freqs)))
         print("[*] done!")
 
     print("[*] generating...")
     interval_coding(args.carrier_freq, interval_freqs, args.samp_rate, count=args.count, times=args.times, mode=args.mode, wav=1, show=1)
     print("[*] done!")
-
 
 
 
