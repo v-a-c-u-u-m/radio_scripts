@@ -221,8 +221,11 @@ def interval_create(carrier_freq, pulse_freqs, samp_rate, count, times, gaussian
 
         if gaussian == 0:
             array[acc:acc+duration] = np.sin(2*np.pi*carrier_freq * time)
-        elif gaussian < 0:
+        elif gaussian == -1:
             array[acc:acc+duration] = (np.sin(2*np.pi*carrier_freq * time - np.pi/2) + 1) / 2
+        elif gaussian == -2:
+            array[acc:acc+duration] = np.random.normal(0, 1, duration)
+            array[acc:acc+duration] = array[acc:acc+duration] / np.max(array[acc:acc+duration])
         else:
             #array[acc:acc+duration] = (np.sin(2*np.pi*carrier_freq * time - np.pi/2) + 1) / 2
             for j in range(count):
@@ -321,6 +324,7 @@ interval_coding
 
     """
 ./interval_coding.py "7.83" -f 501 -s 44100 -c 3 -t 300 -n 5
+./interval_coding.py "7.83" -f 500 -s 44100 -c 14 -t 300 -g -2
     """
 
     usage = './interval_coding.py "7.83" -f 60 -s 44100 -c 4 -t 512'
