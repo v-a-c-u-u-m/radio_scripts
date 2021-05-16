@@ -10,6 +10,7 @@ from numba import njit
 from struct import pack, unpack
 from sys import argv, stdout, exit
 from math import radians
+from scipy import signal
 from scipy.io.wavfile import write, read
 
 
@@ -86,7 +87,117 @@ def plot_xlist(lst_y, lst_x=[], labels=[], colors=[], scatters=[], linestyles=[]
         p.show()
     p.close()
 
-def interval_create(carrier_freq, pulse_freqs, samp_rate, count, times, flag=1, mode="float"):
+def plot_xspectrum(lst_y, lst_x, samp_rate, power_offset=0.000000001, complex_flag=0, db_flag=1, labels=[], colors=[], linestyles=[], title="", savepath="last_plot.png", show=0, xlabel="x", ylabel="y", chunk_size=0, shift=0, figsize=(12, 8), div_line=0, xticks=[], xticksfreq=1, zero_line=1, peak=0):
+    fig = p.figure(1, figsize=figsize)
+    axes = p.axes()
+    axes.ticklabel_format(style="plain")
+
+    p.title(title)
+    p.xlabel(xlabel)
+    p.ylabel(ylabel)
+
+    if zero_line == 1:
+        p.axvline(x=0, color='k', linestyle='--')
+
+    power_offset = power_offset
+
+    if xticks:
+        p.xticks(lst_x[0][::xticksfreq], xticks[::xticksfreq], rotation=45, fontsize=10)
+
+    for i in range(len(lst_y)):
+        lst_y[i] = np.fft.rfft(lst_y[i])
+
+        if   complex_flag > 0:
+            lst_y[i] = np.abs(lst_y[i].real)
+            lst_x[i] = np.linspace(0, samp_rate/2, lst_y[i].size)
+        elif complex_flag < 0:
+            lst_y[i] = np.abs(lst_y[i].imag)
+            lst_x[i] = np.linspace(0, samp_rate/2, lst_y[i].size)
+        else:
+            lst_y[i] = np.abs(np.hstack([np.abs(lst_y[i].imag[::-1]), lst_y[i].real]))
+            lst_x[i] = np.linspace(-1*samp_rate/2, samp_rate/2, lst_y[i].size)
+
+        if db_flag:
+            lst_y[i] = 10 * np.log10(lst_y[i] + power_offset)
+
+        if type(peak) == type(list()):
+            if i in peak:
+                axes_peaks(lst_y[i], axes, x=lst_x[i], chunk_size=chunk_size, shift=shift)
+        elif peak:
+            axes_peaks(lst_y[i], axes, x=lst_x[i], chunk_size=chunk_size, shift=shift)
+        if labels == []:
+            label = str(i)
+        else:
+            label = labels[i]
+        if linestyles == []:
+            linestyle = "-"
+        else:
+            linestyle = linestyles[i]
+        if div_line > 0:
+            if type(lst_x[i]) == type(list()):
+                lst_x_length = len(lst_x[i])
+            else:
+                lst_x_length = lst_x[i].shape[0]
+            for j in range(lst_x_length):
+                if lst_x[i][j] % div_line == 0:
+                    p.axvline(x=lst_x[i][j], color='k', linestyle='--')
+        else:
+            if colors:
+                p.plot(lst_x[i], lst_y[i], label = label, linestyle=linestyle, color = colors[i])
+            else:
+                p.plot(lst_x[i], lst_y[i], label = label, linestyle=linestyle)
+
+    p.legend()
+    p.savefig(savepath)
+    if show:
+        p.show()
+    p.cla()
+    p.clf()
+    p.close()
+
+
+def plot_spectrum(lst_y, samp_rate, title="", xlabel="x", ylabel="y", savepath="last_plot.png", figsize=(17, 8), chunk_size=0, shift=0, maximum=0, peak=0, rev_flag=0, show=0):
+    fig = p.figure(1, figsize=figsize)
+    axes = p.axes()
+    axes.ticklabel_format(style="plain")
+
+    p.title(title)
+    p.xlabel(xlabel)
+    p.ylabel(ylabel)
+
+    for i in range(len(lst_y)):
+        fft_data = np.abs(np.fft.rfft(lst_y[i]))
+        xt = np.linspace(0, samp_rate/2, fft_data.size)
+
+        if rev_flag == 0:
+            samp_rate = 0
+        if type(peak) == type(list()):
+            if i in peak:
+                axes_peaks(fft_data, axes, x=xt, chunk_size=chunk_size, shift=shift, samp_rate=samp_rate)
+        elif peak:
+            axes_peaks(fft_data, axes, x=xt, chunk_size=chunk_size, shift=shift, samp_rate=samp_rate)
+
+        if maximum:
+            acc = 0
+            for j in range(xt.shape[0]):
+                #print(j)
+                if xt[j] >= maximum:
+                    break
+                acc += 1
+            xt = xt[:acc]
+            fft_data = fft_data[:acc]
+        print(xt.shape[0])
+        p.plot(xt, fft_data)
+
+    #p.legend()
+    p.savefig(savepath)
+    if show:
+        p.show()
+    p.cla()
+    p.clf()
+    p.close()
+
+def interval_create(carrier_freq, pulse_freqs, samp_rate, count, times, gaussian=0, flag=1, mode="float"):
     #print(samp_rate)
     #pulse_freq = round(np.average(pulse_freqs))
 
@@ -106,13 +217,21 @@ def interval_create(carrier_freq, pulse_freqs, samp_rate, count, times, flag=1, 
     for i in range(pulse_freqs.shape[0]):
         duration = count * round(samp_rate / carrier_freq)
         space = round(samp_rate / pulse_freqs[i]) - duration
-
         time = np.arange(0, duration/samp_rate, 1/samp_rate)
 
-        pulse = np.abs((np.sin(2*np.pi*carrier_freq * time - np.pi/2) + 1) / 2)
+        if gaussian == 0:
+            array[acc:acc+duration] = np.sin(2*np.pi*carrier_freq * time)
+        elif gaussian < 0:
+            array[acc:acc+duration] = (np.sin(2*np.pi*carrier_freq * time - np.pi/2) + 1) / 2
+        else:
+            #array[acc:acc+duration] = (np.sin(2*np.pi*carrier_freq * time - np.pi/2) + 1) / 2
+            for j in range(count):
+                sample = duration // count
+                print(sample)
+                array[acc+j*sample:acc+(j+1)*sample] = signal.gaussian(sample, std=gaussian)
         #print(pulse.shape[0])
 
-        array[acc:acc+duration] = pulse
+        #array[acc:acc+duration] = pulse
         acc += duration + space
 
     if mode == "int16":
@@ -126,23 +245,23 @@ def interval_create(carrier_freq, pulse_freqs, samp_rate, count, times, flag=1, 
     return array, time
 
 
-def interval_coding(carrier_freq, interval_freqs, samp_rate, count=1, times=1, mode="int16", wav=0, show=0):
+def interval_coding(carrier_freq, interval_freqs, samp_rate, count=1, times=1, gaussian=0, mode="int16", wav=0, show=0):
     interval_freqs = np.array(interval_freqs)
     pulse_freq = round(np.average(interval_freqs))
 
-    array, time = interval_create(carrier_freq, interval_freqs, samp_rate, count, times, mode=mode)
+    array, time = interval_create(carrier_freq, interval_freqs, samp_rate, count, times, gaussian=gaussian, mode=mode)
 
     directory = "output"
 
     if wav:
         makedirs(directory, exist_ok=True)
-        name = "pulse{:d}_carrier{:d}_count{:d}_times{:d}".format(pulse_freq, carrier_freq, count, times)
+        name = "pulse{:d}_carrier{:d}_count{:d}_times{:d}_g{:d}".format(pulse_freq, carrier_freq, count, times, gaussian)
         wav_path = join(directory, name+".wav")
         write(wav_path, samp_rate, array)
 
     if show:
         makedirs(directory, exist_ok=True)
-        title = "samp_rate={:d}\npulse_freq={:.2f}, carrier_freq={:.2f}, count={:d}, times={:d}".format(samp_rate, pulse_freq, carrier_freq, count, times)
+        title = "samp_rate={:d}\npulse_freq={:.2f}, carrier_freq={:.2f}, count={:d}, times={:d}, g={:d}".format(samp_rate, pulse_freq, carrier_freq, count, times, gaussian)
 
         lst_y = [array]
         lst_x = [time]
@@ -158,11 +277,16 @@ def interval_coding(carrier_freq, interval_freqs, samp_rate, count=1, times=1, m
         projection = None
 
         plot_xlist(lst_y, lst_x=lst_x, labels=labels, colors=colors, linestyles=linestyles, title=title, div_line=1, xticksfreq=1, xlabel="time (sec)", ylabel="amplitude", projection=projection, savepath=img_path_wave, show=show)
+
+        #plot_xspectrum(lst_y, lst_x, samp_rate, show=show)
+
+        #plot_spectrum(lst_y, samp_rate, show=show)
+
     return array
 
 
 
-version = "0.0.3"
+version = "0.0.4"
 
 
 if __name__ == "__main__":
@@ -204,6 +328,10 @@ interval_coding
 
     parser.add_argument("-r",'--read', dest='read', type=str, default='double', help="[double, float, byte]")
     parser.add_argument("-m",'--mode', dest='mode', type=str, default='int16', help="Mode [int16]")
+
+    parser.add_argument("-g",'--gaussian', dest='gaussian', type=int, default=-1, help="$\sigma$=100")
+
+    parser.add_argument('--full', dest='full', action='store_true', help="Full waveform")
     
     args = parser.parse_args()
 
@@ -211,6 +339,12 @@ interval_coding
     if len(argv) == 1:
         parser.print_help()
         exit(1)
+
+    if args.gaussian > 0:
+        value = args.samp_rate / args.carrier_freq / args.gaussian
+        if value < 8:
+            print("[!] bad resolution: please, increase frequency (-f), increase sample_rate (-s) or decrease sigma (-g)")
+            exit()
 
     if exists(args.filepath):
         with open(args.filepath, "rb") as f:
@@ -243,7 +377,7 @@ interval_coding
         print("[*] done!")
 
     print("[*] generating...")
-    interval_coding(args.carrier_freq, interval_freqs, args.samp_rate, count=args.count, times=args.times, mode=args.mode, wav=1, show=1)
+    interval_coding(args.carrier_freq, interval_freqs, args.samp_rate, count=args.count, times=args.times, gaussian=args.gaussian, mode=args.mode, wav=1, show=1)
     print("[*] done!")
 
 
