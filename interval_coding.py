@@ -211,34 +211,28 @@ def interval_create(carrier_freq, pulse_freqs, samp_rate, count, times, gaussian
         size += duration + space
 
     array = np.zeros(size, dtype="float")
+    total = np.zeros(times*size, dtype="float")
 
-    acc = 0
+    for t in range(times):
+        acc = 0
+        for i in range(pulse_freqs.shape[0]):
+            duration = count * round(samp_rate / carrier_freq)
+            space = round(samp_rate / pulse_freqs[i]) - duration
+            time = np.arange(0, duration/samp_rate, 1/samp_rate)
 
-    for i in range(pulse_freqs.shape[0]):
-        duration = count * round(samp_rate / carrier_freq)
-        space = round(samp_rate / pulse_freqs[i]) - duration
-        time = np.arange(0, duration/samp_rate, 1/samp_rate)
-
-        if gaussian == 0:
-            array[acc:acc+duration] = np.sin(2*np.pi*carrier_freq * time)
-        elif gaussian == -1:
-            array[acc:acc+duration] = (np.sin(2*np.pi*carrier_freq * time - np.pi/2) + 1) / 2
-        elif gaussian == -2:
-            array[acc:acc+duration] = np.random.normal(0, 1, duration)
-            array[acc:acc+duration] = array[acc:acc+duration] / np.max(array[acc:acc+duration])
-        else:
-            #array[acc:acc+duration] = (np.sin(2*np.pi*carrier_freq * time - np.pi/2) + 1) / 2
-            for j in range(count):
-                sample = duration // count
-                array[acc+j*sample:acc+(j+1)*sample] = signal.gaussian(sample, std=gaussian)
-        #print(pulse.shape[0])
-
-        #array[acc:acc+duration] = pulse
-        acc += duration + space
-
-    total = np.array([])
-    for i in range(times):
-        total = np.hstack((total, array))
+            if gaussian == 0:
+                array[acc:acc+duration] = np.sin(2*np.pi*carrier_freq * time)
+            elif gaussian == -1:
+                array[acc:acc+duration] = (np.sin(2*np.pi*carrier_freq * time - np.pi/2) + 1) / 2
+            elif gaussian == -2:
+                array[acc:acc+duration] = np.random.normal(0, 0.90, duration)
+            else:
+                for j in range(count):
+                    sample = duration // count
+                    array[acc+j*sample:acc+(j+1)*sample] = signal.gaussian(sample, std=gaussian)
+            acc += duration + space
+        total[t*size:(t+1)*size] = array[:]
+        array[:] = 0
 
     if noise:
         total += np.random.normal(0, noise/100, total.shape[0])
@@ -292,14 +286,13 @@ def interval_coding(carrier_freq, interval_freqs, samp_rate, count=1, times=1, g
 
 
 
-version = "0.0.6"
+version = "0.0.7"
 
 
 if __name__ == "__main__":
     banner = '''\033[1;m\033[10;32m
 interval_coding                 
 \033[1;m'''
-
 
     """
 ./interval_coding.py double.bin -f 501 -s 80000 -c 32 -t 1
@@ -324,7 +317,13 @@ interval_coding
 
     """
 ./interval_coding.py "7.83" -f 501 -s 44100 -c 3 -t 300 -n 5
+    """
+
+    """
 ./interval_coding.py "7.83" -f 500 -s 44100 -c 14 -t 300 -g -2
+./interval_coding.py "7.83" -f 783 -s 44100 -c 50 -t 300 -g -2
+./interval_coding.py "200" -f 2000 -s 44100 -c 5 -t 8000 -g -2
+./interval_coding.py "4009" -f 8018 -s 44100 -c 1 -t 320000 -g -2
     """
 
     usage = './interval_coding.py "7.83" -f 60 -s 44100 -c 4 -t 512'
